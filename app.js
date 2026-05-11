@@ -1,4 +1,5 @@
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
+const TABS = ["log", "history", "progress"];
 
 const GROUPS = {
   Push: ["Rinta","Olkapäät","Ojentajat"],
@@ -35,6 +36,26 @@ function App() {
   const [pEx, setPEx] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const touchRef = useRef({x:0, y:0, t:0});
+
+  function onTouchStart(e) {
+    const t = e.touches[0];
+    touchRef.current = {x:t.clientX, y:t.clientY, t:Date.now()};
+  }
+  function onTouchEnd(e) {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchRef.current.x;
+    const dy = t.clientY - touchRef.current.y;
+    const dt = Date.now() - touchRef.current.t;
+    if (dt > 600) return;
+    if (Math.abs(dx) < 60) return;
+    if (Math.abs(dy) > Math.abs(dx) * 0.7) return;
+    const tag = (e.target.tagName || "").toLowerCase();
+    if (["input","textarea","select"].includes(tag)) return;
+    const idx = TABS.indexOf(tab);
+    if (dx < 0 && idx < TABS.length-1) setTab(TABS[idx+1]);
+    else if (dx > 0 && idx > 0) setTab(TABS[idx-1]);
+  }
 
   useEffect(() => {
     storage.get(KEY).then(r => {
@@ -179,22 +200,22 @@ function App() {
   const c = {
     wrap: {padding:"12px", fontFamily:"system-ui,sans-serif", maxWidth:500, margin:"0 auto", color:"#e5e5e5"},
     tabs: {display:"flex", gap:6, marginBottom:16, flexWrap:"wrap", alignItems:"center"},
-    tab: a => ({padding:"7px 14px", borderRadius:8, border:"1px solid "+(a?"transparent":"#333"), background:a?"#fff":"#1a1a1a", color:a?"#000":"#aaa", fontSize:13, cursor:"pointer"}),
-    gear: {marginLeft:"auto", width:34, height:34, borderRadius:8, border:"1px solid #333", background:"#1a1a1a", color:"#aaa", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center"},
+    tab: a => ({padding:"7px 14px", borderRadius:8, border:"1px solid "+(a?"transparent":"#333"), background:a?"#fff":"#1a1a1a", color:a?"#000":"#fff", fontSize:13, cursor:"pointer"}),
+    gear: {marginLeft:"auto", width:34, height:34, borderRadius:8, border:"1px solid #333", background:"#1a1a1a", color:"#fff", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center"},
     card: {background:"#161616", border:"1px solid #2a2a2a", borderRadius:12, padding:"12px", marginBottom:10},
     cardBl: {background:"#161616", border:"1px solid #2a2a2a", borderLeft:"3px solid #fff", borderRadius:12, padding:"12px", marginBottom:10},
-    label: {fontSize:11, color:"#888", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8},
-    mBtn: a => ({padding:"6px 10px", borderRadius:8, border:"1px solid "+(a?"transparent":"#333"), background:a?"#fff":"#222", color:a?"#000":"#ccc", fontSize:12, cursor:"pointer", opacity:a?0.7:1}),
+    label: {fontSize:11, color:"#fff", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8},
+    mBtn: a => ({padding:"6px 10px", borderRadius:8, border:"1px solid "+(a?"transparent":"#333"), background:a?"#fff":"#222", color:a?"#000":"#fff", fontSize:12, cursor:"pointer", opacity:a?0.7:1}),
     inp: {height:34, padding:"0 8px", border:"1px solid #2a2a2a", borderRadius:7, fontSize:13, background:"#1f1f1f", color:"#e5e5e5", width:"100%"},
     inpC: {height:34, padding:"0 8px", border:"1px solid #2a2a2a", borderRadius:7, fontSize:13, background:"#1f1f1f", color:"#e5e5e5", width:"100%", textAlign:"center"},
     exBox: {background:"#1a1a1a", borderRadius:8, padding:"10px", marginBottom:8, border:"1px solid #252525"},
     row: {display:"grid", gridTemplateColumns:"22px 1fr 1fr 20px", gap:4, alignItems:"center", marginBottom:4},
-    del: {background:"none", border:"none", cursor:"pointer", color:"#555", fontSize:14, padding:0},
-    sbtn: {padding:"4px 10px", borderRadius:6, border:"1px solid #2a2a2a", background:"#1f1f1f", fontSize:12, cursor:"pointer", color:"#aaa", marginTop:2},
-    abtn: {width:"100%", padding:7, borderRadius:8, border:"1px solid #2a2a2a", background:"#1f1f1f", fontSize:13, cursor:"pointer", color:"#aaa", marginTop:4},
+    del: {background:"none", border:"none", cursor:"pointer", color:"#fff", fontSize:14, padding:0},
+    sbtn: {padding:"4px 10px", borderRadius:6, border:"1px solid #2a2a2a", background:"#1f1f1f", fontSize:12, cursor:"pointer", color:"#fff", marginTop:2},
+    abtn: {width:"100%", padding:7, borderRadius:8, border:"1px solid #2a2a2a", background:"#1f1f1f", fontSize:13, cursor:"pointer", color:"#fff", marginTop:4},
     savebtn: {width:"100%", padding:12, borderRadius:8, border:"none", background:"#fff", color:"#000", fontSize:14, fontWeight:500, cursor:"pointer", marginTop:6},
-    tag: {fontSize:11, padding:"2px 8px", borderRadius:20, background:"#252525", color:"#aaa"},
-    empty: {textAlign:"center", color:"#666", padding:"2rem 0", fontSize:14},
+    tag: {fontSize:11, padding:"2px 8px", borderRadius:20, background:"#252525", color:"#fff"},
+    empty: {textAlign:"center", color:"#fff", padding:"2rem 0", fontSize:14},
     stats: {display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:12},
     stat: {background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px", textAlign:"center"},
     calGrid: {display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2},
@@ -203,7 +224,7 @@ function App() {
   };
 
   return (
-    <div style={c.wrap}>
+    <div style={c.wrap} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <div style={c.tabs}>
         {[["log","+ Treeni"],["history","Historia"],["progress","Progressio"]].map(([id,l]) => (
           <button key={id} style={c.tab(tab===id)} onClick={() => setTab(id)}>{l}</button>
@@ -214,7 +235,7 @@ function App() {
       {showSettings && (
         <div style={c.card}>
           <div style={c.label}>Asetukset</div>
-          <div style={{fontSize:12, color:"#888", marginBottom:10}}>
+          <div style={{fontSize:12, color:"#fff", marginBottom:10}}>
             Varmuuskopioi treenit tiedostoon tai palauta aiemmin tallennetusta tiedostosta.
           </div>
           <button style={{...c.abtn, marginTop:0, marginBottom:8}} onClick={exportData}>
@@ -233,7 +254,7 @@ function App() {
             <div style={c.label}>Valitse lihasryhmät</div>
             {Object.entries(GROUPS).map(([cat,muscles]) => (
               <div key={cat} style={{marginBottom:10}}>
-                <div style={{fontSize:11, color:"#666", marginBottom:4}}>{cat}</div>
+                <div style={{fontSize:11, color:"#fff", marginBottom:4}}>{cat}</div>
                 <div style={{display:"flex", flexWrap:"wrap", gap:6}}>
                   {muscles.map(m => (
                     <button key={m} style={c.mBtn(selMuscles.includes(m))} onClick={() => toggleMuscle(m)}>
@@ -283,7 +304,7 @@ function App() {
                           <div style={{display:"flex", flexWrap:"wrap", gap:4, marginBottom:8}}>
                             {suggestions.map(n => (
                               <button key={n}
-                                style={{fontSize:11, padding:"3px 9px", borderRadius:14, background:"#1f1f1f", color:"#aaa", border:"1px solid #2a2a2a", cursor:"pointer"}}
+                                style={{fontSize:11, padding:"3px 9px", borderRadius:14, background:"#1f1f1f", color:"#fff", border:"1px solid #2a2a2a", cursor:"pointer"}}
                                 onClick={() => setExName(block.id, ex.id, n)}>
                                 {n}
                               </button>
@@ -293,13 +314,13 @@ function App() {
                       })()}
                       <div style={{display:"grid", gridTemplateColumns:"22px 1fr 1fr 20px", gap:4, marginBottom:4}}>
                         <span></span>
-                        <span style={{fontSize:10, color:"#666", textAlign:"center"}}>Toistot</span>
-                        <span style={{fontSize:10, color:"#666", textAlign:"center"}}>Paino kg</span>
+                        <span style={{fontSize:10, color:"#fff", textAlign:"center"}}>Toistot</span>
+                        <span style={{fontSize:10, color:"#fff", textAlign:"center"}}>Paino kg</span>
                         <span></span>
                       </div>
                       {ex.sets.map((s, si) => (
                         <div key={s.id} style={c.row}>
-                          <span style={{fontSize:12, color:"#666", textAlign:"center"}}>{si+1}</span>
+                          <span style={{fontSize:12, color:"#fff", textAlign:"center"}}>{si+1}</span>
                           <input style={c.inpC} type="number" placeholder="10" value={s.reps}
                             onChange={e => updSet(block.id, ex.id, s.id, "reps", e.target.value)} />
                           <input style={c.inpC} type="number" placeholder="0" step="0.5" value={s.weight}
@@ -330,7 +351,7 @@ function App() {
             </div>
             <div style={{...c.calGrid, marginBottom:4}}>
               {["Su","Ma","Ti","Ke","To","Pe","La"].map(d => (
-                <div key={d} style={{fontSize:10, color:"#666", textAlign:"center"}}>{d}</div>
+                <div key={d} style={{fontSize:10, color:"#fff", textAlign:"center"}}>{d}</div>
               ))}
             </div>
             <div style={c.calGrid}>
@@ -350,7 +371,7 @@ function App() {
             {Object.keys(wDates).length > 0 && (
               <div style={{marginTop:10}}>
                 {Object.entries(wDates).sort((a,b) => a[0]-b[0]).map(([d,info]) => (
-                  <div key={d} style={{fontSize:12, color:"#aaa", marginBottom:2}}><b>{d}.</b> {info}</div>
+                  <div key={d} style={{fontSize:12, color:"#fff", marginBottom:2}}><b>{d}.</b> {info}</div>
                 ))}
               </div>
             )}
@@ -360,7 +381,7 @@ function App() {
             {[[workouts.length,"Treenikertaa"],[Object.keys(prs).length,"Liikettä"],[Math.round(totalVol/1000)+"t","Volyymi"]].map(([v,l]) => (
               <div key={l} style={c.stat}>
                 <div style={{fontSize:20, fontWeight:500}}>{v}</div>
-                <div style={{fontSize:11, color:"#888"}}>{l}</div>
+                <div style={{fontSize:11, color:"#fff"}}>{l}</div>
               </div>
             ))}
           </div>
@@ -374,7 +395,7 @@ function App() {
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
                     <span style={{fontWeight:500, fontSize:13}}>
                       {fmtDate(w.date)}
-                      {w.time && <span style={{fontWeight:400, color:"#666", fontSize:12, marginLeft:6}}>{w.time}</span>}
+                      {w.time && <span style={{fontWeight:400, color:"#fff", fontSize:12, marginLeft:6}}>{w.time}</span>}
                     </span>
                     <button style={c.del} onClick={() => delW(i)}>🗑</button>
                   </div>
@@ -382,7 +403,7 @@ function App() {
                     {(w.groups||[]).map(g => <span key={g.muscle} style={c.tag}>{g.muscle}</span>)}
                   </div>
                   {(w.groups||[]).map(g => (
-                    <div key={g.muscle} style={{fontSize:12, color:"#aaa", marginBottom:2}}>
+                    <div key={g.muscle} style={{fontSize:12, color:"#fff", marginBottom:2}}>
                       <b style={{color:"#e5e5e5"}}>{g.muscle}: </b>
                       {g.muscle==="Cardio"
                         ? (g.ct?g.ct+" min":"")+(g.cn?" · "+g.cn:"")
@@ -410,12 +431,12 @@ function App() {
                 </select>
                 <div style={{display:"grid", gridTemplateColumns:"1fr 55px 65px", gap:4, marginBottom:4}}>
                   {["Päivä","Toistot","Paino"].map((l,i) => (
-                    <span key={l} style={{fontSize:10, color:"#666", textAlign:i>0?"center":"left"}}>{l}</span>
+                    <span key={l} style={{fontSize:10, color:"#fff", textAlign:i>0?"center":"left"}}>{l}</span>
                   ))}
                 </div>
                 {pEntries.map((e,i) => (
                   <div key={i} style={{display:"grid", gridTemplateColumns:"1fr 55px 65px", gap:4, padding:"6px 0", borderBottom:"1px solid #252525", fontSize:13}}>
-                    <span style={{color:"#aaa"}}>{fmtDate(e.date)}</span>
+                    <span style={{color:"#fff"}}>{fmtDate(e.date)}</span>
                     <span style={{textAlign:"center"}}>{e.reps}</span>
                     <span style={{textAlign:"center"}}>{e.weight} kg</span>
                   </div>
@@ -434,7 +455,7 @@ function App() {
                   <span>{name}</span>
                   <div style={{textAlign:"right"}}>
                     <div style={{fontWeight:500}}>{pr.w} kg</div>
-                    <div style={{fontSize:11, color:"#666"}}>{fmtDate(pr.d)}</div>
+                    <div style={{fontSize:11, color:"#fff"}}>{fmtDate(pr.d)}</div>
                   </div>
                 </div>
               ))
