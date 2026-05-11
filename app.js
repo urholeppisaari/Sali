@@ -264,7 +264,7 @@ function App() {
                 <div>
                   {block.exercises.map((ex, xi) => (
                     <div key={ex.id} style={c.exBox}>
-                      <div style={{display:"flex", gap:6, alignItems:"center", marginBottom:8}}>
+                      <div style={{display:"flex", gap:6, alignItems:"center", marginBottom:6}}>
                         <input style={c.inp} list={"dl-"+ex.id}
                           placeholder="Liikkeen nimi" value={ex.name}
                           onChange={e => setExName(block.id, ex.id, e.target.value)} />
@@ -273,6 +273,24 @@ function App() {
                         </datalist>
                         {xi > 0 && <button style={c.del} onClick={() => rmEx(block.id, ex.id)}>✕</button>}
                       </div>
+                      {(() => {
+                        const q = ex.name.trim().toLowerCase();
+                        const suggestions = prevEx(block.muscle).filter(n =>
+                          n.toLowerCase() !== q && (!q || n.toLowerCase().includes(q))
+                        );
+                        if (!suggestions.length) return null;
+                        return (
+                          <div style={{display:"flex", flexWrap:"wrap", gap:4, marginBottom:8}}>
+                            {suggestions.map(n => (
+                              <button key={n}
+                                style={{fontSize:11, padding:"3px 9px", borderRadius:14, background:"#1f1f1f", color:"#aaa", border:"1px solid #2a2a2a", cursor:"pointer"}}
+                                onClick={() => setExName(block.id, ex.id, n)}>
+                                {n}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
                       <div style={{display:"grid", gridTemplateColumns:"22px 1fr 1fr 20px", gap:4, marginBottom:4}}>
                         <span></span>
                         <span style={{fontSize:10, color:"#666", textAlign:"center"}}>Toistot</span>
