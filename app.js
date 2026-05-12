@@ -5,7 +5,7 @@ const GROUPS = {
   Push: ["Rinta","Olkapäät","Ojentajat"],
   Pull: ["Selkä","Hauikset"],
   Legs: ["Jalat","Vatsat"],
-  Other: ["Cardio"]
+  Muut: ["Cardio"]
 };
 const KEY = "gym_v5";
 
@@ -36,26 +36,37 @@ function App() {
   const [pEx, setPEx] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [editingIdx, setEditingIdx] = useState(null);
   const touchRef = useRef({x:0, y:0, t:0});
+  const tabRef = useRef(tab);
+  useEffect(() => { tabRef.current = tab; }, [tab]);
 
-  function onTouchStart(e) {
-    const t = e.touches[0];
-    touchRef.current = {x:t.clientX, y:t.clientY, t:Date.now()};
-  }
-  function onTouchEnd(e) {
-    const t = e.changedTouches[0];
-    const dx = t.clientX - touchRef.current.x;
-    const dy = t.clientY - touchRef.current.y;
-    const dt = Date.now() - touchRef.current.t;
-    if (dt > 600) return;
-    if (Math.abs(dx) < 60) return;
-    if (Math.abs(dy) > Math.abs(dx) * 0.7) return;
-    const tag = (e.target.tagName || "").toLowerCase();
-    if (["input","textarea","select"].includes(tag)) return;
-    const idx = TABS.indexOf(tab);
-    if (dx < 0 && idx < TABS.length-1) setTab(TABS[idx+1]);
-    else if (dx > 0 && idx > 0) setTab(TABS[idx-1]);
-  }
+  useEffect(() => {
+    function onStart(e) {
+      const t = e.touches[0];
+      touchRef.current = {x:t.clientX, y:t.clientY, t:Date.now()};
+    }
+    function onEnd(e) {
+      const t = e.changedTouches[0];
+      const dx = t.clientX - touchRef.current.x;
+      const dy = t.clientY - touchRef.current.y;
+      const dt = Date.now() - touchRef.current.t;
+      if (dt > 600) return;
+      if (Math.abs(dx) < 60) return;
+      if (Math.abs(dy) > Math.abs(dx) * 0.7) return;
+      const tag = (e.target.tagName || "").toLowerCase();
+      if (["input","textarea","select","button"].includes(tag)) return;
+      const idx = TABS.indexOf(tabRef.current);
+      if (dx < 0 && idx < TABS.length-1) setTab(TABS[idx+1]);
+      else if (dx > 0 && idx > 0) setTab(TABS[idx-1]);
+    }
+    document.addEventListener("touchstart", onStart, {passive:true});
+    document.addEventListener("touchend", onEnd, {passive:true});
+    return () => {
+      document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchend", onEnd);
+    };
+  }, []);
 
   useEffect(() => {
     storage.get(KEY).then(r => {
@@ -115,12 +126,49 @@ function App() {
       return {muscle:b.muscle, exercises:b.exercises.filter(e => e.name.trim()).map(e => ({name:e.name.trim(), sets:e.sets}))};
     }).filter(g => g.muscle === "Cardio" || g.exercises.length);
     if (!groups.length) { showToast("Lisää liike"); return; }
-    setWorkouts(w => [...w, {date:todayStr(), time:nowTime(), groups}]);
-    setBlocks([]);
-    showToast("Tallennettu!");
+    if (editingIdx !== null) {
+      setWorkouts(w => w.map((it, idx) => idx === editingIdx ? Object.assign({}, it, {groups}) : it));
+      setEditingIdx(null);
+      setBlocks([]);
+      showToast("Päivitetty!");
+    } else {
+      setWorkouts(w => [...w, {date:todayStr(), time:nowTime(), groups}]);
+      setBlocks([]);
+      showToast("Tallennettu!");
+    }
   }
 
-  function delW(i) { setWorkouts(w => w.filter((_,idx) => idx !== i)); }
+  function editWorkout(i) {
+    const w = workouts[i];
+    if (!w) return;
+    const newBlocks = (w.groups||[]).map(g => ({
+      id: uid(),
+      muscle: g.muscle,
+      exercises: g.muscle === "Cardio" ? [newEx()] : (g.exercises || []).map(e => ({
+        id: uid(),
+        name: e.name,
+        sets: (e.sets || []).map(s => ({id:uid(), reps:s.reps, weight:s.weight}))
+      })),
+      ct: g.ct || "",
+      cn: g.cn || ""
+    }));
+    setBlocks(newBlocks);
+    setEditingIdx(i);
+    setTab("log");
+    setShowSettings(false);
+    window.scrollTo(0, 0);
+  }
+
+  function cancelEdit() {
+    setEditingIdx(null);
+    setBlocks([]);
+  }
+
+  function delW(i) {
+    if (!confirm("Poistetaanko tämä treeni?")) return;
+    if (editingIdx === i) { setEditingIdx(null); setBlocks([]); }
+    setWorkouts(w => w.filter((_,idx) => idx !== i));
+  }
 
   function exportData() {
     const data = JSON.stringify({w:workouts}, null, 2);
@@ -176,13 +224,16 @@ function App() {
     )
   ).reverse();
 
-  const totalVol = workouts.flatMap(w =>
-    (w.groups||[]).flatMap(g =>
-      (g.exercises||[]).flatMap(e =>
-        (e.sets||[]).map(s => (parseInt(s.reps)||0) * (parseFloat(s.weight)||0))
-      )
-    )
-  ).reduce((a,b) => a+b, 0);
+  const cardioCount = workouts.filter(w => (w.groups||[]).some(g => g.muscle === "Cardio")).length;
+
+  const last30 = Date.now() - 30*24*3600*1000;
+  const recent30 = workouts.filter(w => new Date(w.date+"T12:00:00").getTime() > last30).length;
+  let consLabel = "Heikko", consColor = "#ff6b6b";
+  if (workouts.length === 0) { consLabel = "—"; consColor = "#666"; }
+  else if (recent30 >= 12) { consLabel = "Erinomainen"; consColor = "#4ade80"; }
+  else if (recent30 >= 8) { consLabel = "Hyvä"; consColor = "#86efac"; }
+  else if (recent30 >= 4) { consLabel = "Kohtalainen"; consColor = "#fbbf24"; }
+  else { consLabel = "Heikko"; consColor = "#ff6b6b"; }
 
   const now = new Date();
   const yr = now.getFullYear(), mo = now.getMonth();
@@ -198,7 +249,7 @@ function App() {
   });
 
   const c = {
-    wrap: {padding:"12px", fontFamily:"system-ui,sans-serif", maxWidth:500, margin:"0 auto", color:"#e5e5e5"},
+    wrap: {padding:"12px", fontFamily:"system-ui,sans-serif", maxWidth:500, margin:"0 auto", color:"#fff", minHeight:"100vh"},
     tabs: {display:"flex", gap:6, marginBottom:16, flexWrap:"wrap", alignItems:"center"},
     tab: a => ({padding:"7px 14px", borderRadius:8, border:"1px solid "+(a?"transparent":"#333"), background:a?"#fff":"#1a1a1a", color:a?"#000":"#fff", fontSize:13, cursor:"pointer"}),
     gear: {marginLeft:"auto", width:34, height:34, borderRadius:8, border:"1px solid #333", background:"#1a1a1a", color:"#fff", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center"},
@@ -224,7 +275,7 @@ function App() {
   };
 
   return (
-    <div style={c.wrap} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <div style={c.wrap}>
       <div style={c.tabs}>
         {[["log","+ Treeni"],["history","Historia"],["progress","Progressio"]].map(([id,l]) => (
           <button key={id} style={c.tab(tab===id)} onClick={() => setTab(id)}>{l}</button>
@@ -250,6 +301,15 @@ function App() {
 
       {tab === "log" && (
         <div>
+          {editingIdx !== null && workouts[editingIdx] && (
+            <div style={{...c.card, borderLeft:"3px solid #fbbf24", background:"#1a1610"}}>
+              <div style={{fontSize:13, fontWeight:500, color:"#fbbf24"}}>Muokataan treeniä</div>
+              <div style={{fontSize:12, color:"#fff", marginTop:2}}>
+                {fmtDate(workouts[editingIdx].date)}
+                {workouts[editingIdx].time && " · " + workouts[editingIdx].time}
+              </div>
+            </div>
+          )}
           <div style={c.card}>
             <div style={c.label}>Valitse lihasryhmät</div>
             {Object.entries(GROUPS).map(([cat,muscles]) => (
@@ -338,7 +398,14 @@ function App() {
           ))}
 
           {blocks.length > 0 && (
-            <button style={c.savebtn} onClick={saveWorkout}>Tallenna treeni</button>
+            <div>
+              <button style={c.savebtn} onClick={saveWorkout}>
+                {editingIdx !== null ? "Päivitä treeni" : "Tallenna treeni"}
+              </button>
+              {editingIdx !== null && (
+                <button style={{...c.abtn, marginTop:8}} onClick={cancelEdit}>Peruuta muokkaus</button>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -378,12 +445,18 @@ function App() {
           </div>
 
           <div style={c.stats}>
-            {[[workouts.length,"Treenikertaa"],[Object.keys(prs).length,"Liikettä"],[Math.round(totalVol/1000)+"t","Volyymi"]].map(([v,l]) => (
-              <div key={l} style={c.stat}>
-                <div style={{fontSize:20, fontWeight:500}}>{v}</div>
-                <div style={{fontSize:11, color:"#fff"}}>{l}</div>
-              </div>
-            ))}
+            <div style={c.stat}>
+              <div style={{fontSize:20, fontWeight:500}}>{workouts.length}</div>
+              <div style={{fontSize:11, color:"#fff"}}>Treenikertaa</div>
+            </div>
+            <div style={c.stat}>
+              <div style={{fontSize:20, fontWeight:500}}>{cardioCount}</div>
+              <div style={{fontSize:11, color:"#fff"}}>Cardio</div>
+            </div>
+            <div style={c.stat}>
+              <div style={{fontSize:15, fontWeight:600, color:consColor}}>{consLabel}</div>
+              <div style={{fontSize:11, color:"#fff"}}>Säännöllisyys</div>
+            </div>
           </div>
 
           <div style={c.card}>
@@ -397,7 +470,10 @@ function App() {
                       {fmtDate(w.date)}
                       {w.time && <span style={{fontWeight:400, color:"#fff", fontSize:12, marginLeft:6}}>{w.time}</span>}
                     </span>
-                    <button style={c.del} onClick={() => delW(i)}>🗑</button>
+                    <div style={{display:"flex", gap:14}}>
+                      <button style={{...c.del, color:"#fbbf24", fontSize:16}} onClick={() => editWorkout(i)} title="Muokkaa">✎</button>
+                      <button style={c.del} onClick={() => delW(i)} title="Poista">🗑</button>
+                    </div>
                   </div>
                   <div style={{display:"flex", flexWrap:"wrap", gap:4, margin:"4px 0"}}>
                     {(w.groups||[]).map(g => <span key={g.muscle} style={c.tag}>{g.muscle}</span>)}
