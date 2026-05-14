@@ -276,6 +276,16 @@ function App() {
 
   return (
     <div style={c.wrap}>
+      <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:16}}>
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect x="3" y="11" width="3" height="6" rx="1" fill="#fff"/>
+          <rect x="22" y="11" width="3" height="6" rx="1" fill="#fff"/>
+          <rect x="6" y="9" width="2" height="10" rx="1" fill="#fff"/>
+          <rect x="20" y="9" width="2" height="10" rx="1" fill="#fff"/>
+          <rect x="8" y="13" width="12" height="2" rx="1" fill="#fff"/>
+        </svg>
+        <h2 style={{fontSize:20, fontWeight:700, color:"#fff", margin:0, flex:1}}>Sali</h2>
+      </div>
       <div style={c.tabs}>
         {[["log","+ Treeni"],["history","Historia"],["progress","Progressio"]].map(([id,l]) => (
           <button key={id} style={c.tab(tab===id)} onClick={() => setTab(id)}>{l}</button>
