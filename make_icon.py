@@ -1,102 +1,52 @@
-from PIL import Image, ImageDraw, ImageFilter
+"""Generate Sali_sovellus app icons from icons8-dumbbell-100.png.
 
-SIZE = 512
-SCALE = 4  # supersample for crisp edges
-W = SIZE * SCALE
+Style: black rounded square background, white dumbbell (matches Koulu_sovellus).
+"""
+from PIL import Image
+import os
 
-
-def rounded_rect_mask(size, rects, radius):
-    """rects: list of (x0,y0,x1,y1). Returns L mask with rects filled white."""
-    img = Image.new("L", size, 0)
-    d = ImageDraw.Draw(img)
-    for r in rects:
-        d.rounded_rectangle(r, radius=radius, fill=255)
-    return img
-
-
-def build_dumbbell(canvas_size, stroke):
-    """Build outlined dumbbell as L mask on canvas of given size."""
-    # Coordinates designed at base 512 then scaled
-    s = canvas_size / 512
-
-    def sc(*v):
-        return tuple(int(round(x * s)) for x in v)
-
-    # Outer shapes (union forms the outer silhouette)
-    weight_l = sc(96, 146, 200, 366)    # left weight block
-    weight_r = sc(312, 146, 416, 366)   # right weight block
-    handle   = sc(140, 226, 372, 286)   # connecting bar (overlaps weights)
-
-    rects_outer = [weight_l, weight_r, handle]
-    radius_outer = int(round(26 * s))
-
-    outer = rounded_rect_mask((canvas_size, canvas_size), rects_outer, radius_outer)
-
-    # Inner = outer eroded by stroke width (morphological erosion via MinFilter)
-    # MinFilter(2k+1) erodes by k pixels per side
-    inner = outer
-    remaining = stroke
-    while remaining > 0:
-        step = min(remaining, 10)  # MinFilter max kernel ~21
-        size_k = 2 * step + 1
-        inner = inner.filter(ImageFilter.MinFilter(size_k))
-        remaining -= step
-
-    from PIL import ImageChops
-    outline = ImageChops.subtract(outer, inner)
-    return outline
+SRC = "icons8-dumbbell-100.png"
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def make_icon(size, maskable=False):
-    # Supersample
-    big = size * SCALE
-    img = Image.new("RGBA", (big, big), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
+    # Load source and convert to RGBA
+    src = Image.open(os.path.join(HERE, SRC)).convert("RGBA")
 
-    # Background: black rounded square (matches koulu style)
-    # iOS-style corner radius ~22% of side
+    # Build a high-res canvas (supersample 2x for crisp downscale)
+    scale = 2
+    big = size * scale
+    canvas = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+
+    # Background: black rounded square (or full bleed for maskable)
+    from PIL import ImageDraw
+    draw = ImageDraw.Draw(canvas)
     if maskable:
-        # For maskable, fill the whole bleed area (safe zone is inner 80%)
         draw.rectangle((0, 0, big, big), fill=(0, 0, 0, 255))
+        icon_area = int(big * 0.65)  # safe zone
     else:
         radius = int(big * 0.22)
         draw.rounded_rectangle((0, 0, big, big), radius=radius, fill=(0, 0, 0, 255))
+        icon_area = int(big * 0.72)
 
-    # Dumbbell mask
-    if maskable:
-        # Shrink dumbbell so it sits inside safe zone (80%)
-        inner_size = int(big * 0.78)
-        offset = (big - inner_size) // 2
-        stroke = int(round(20 * (inner_size / 512)))
-        dumb_mask = build_dumbbell(inner_size, stroke)
-        full_mask = Image.new("L", (big, big), 0)
-        full_mask.paste(dumb_mask, (offset, offset))
-    else:
-        stroke = int(round(20 * (big / 512)))
-        full_mask = build_dumbbell(big, stroke)
+    # Convert source to white silhouette using its alpha channel.
+    # The source is a black dumbbell on transparent bg, so alpha = silhouette.
+    # Resize source to icon_area while preserving aspect.
+    src_resized = src.resize((icon_area, icon_area), Image.LANCZOS)
+    alpha = src_resized.split()[-1]
+    white = Image.new("RGBA", (icon_area, icon_area), (255, 255, 255, 255))
+    white.putalpha(alpha)
 
-    # Paint white through mask
-    white = Image.new("RGBA", (big, big), (255, 255, 255, 255))
-    img.paste(white, (0, 0), full_mask)
+    # Paste centered
+    off = ((big - icon_area) // 2, (big - icon_area) // 2)
+    canvas.alpha_composite(white, off)
 
-    # Downsample
-    return img.resize((size, size), Image.LANCZOS)
+    return canvas.resize((size, size), Image.LANCZOS)
 
 
 if __name__ == "__main__":
-    import os
-    out_dir = os.path.dirname(os.path.abspath(__file__))
-
-    icon512 = make_icon(512)
-    icon512.save(os.path.join(out_dir, "icon-512.png"))
-
-    icon192 = make_icon(192)
-    icon192.save(os.path.join(out_dir, "icon-192.png"))
-
-    icon_maskable = make_icon(512, maskable=True)
-    icon_maskable.save(os.path.join(out_dir, "icon-512-maskable.png"))
-
-    apple = make_icon(180)
-    apple.save(os.path.join(out_dir, "apple-touch-icon.png"))
-
+    make_icon(512).save(os.path.join(HERE, "icon-512.png"))
+    make_icon(192).save(os.path.join(HERE, "icon-192.png"))
+    make_icon(512, maskable=True).save(os.path.join(HERE, "icon-512-maskable.png"))
+    make_icon(180).save(os.path.join(HERE, "apple-touch-icon.png"))
     print("Icons generated.")
